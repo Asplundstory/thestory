@@ -1,0 +1,32 @@
+[
+  {
+    "id": "1001",
+    "wineSearcherUrl": "https://www.wine-searcher.com/find/fontanafredda+barolo",
+    "averageMarketPrice": 420,
+    "benchmarkPrice": 510,
+    "twelveMonthChangePercent": 7.5,
+    "fiveYearChangePercent": 28.3,
+    "valueScore": "stark",
+    "analystNote": "Stabil efterfrågan på klassisk Barolo med stadig värdeökning över fem år."
+  },
+  {
+    "id": "2002",
+    "wineSearcherUrl": "https://www.wine-searcher.com/find/casal+garcia+vinho+verde",
+    "averageMarketPrice": 95,
+    "benchmarkPrice": 99,
+    "twelveMonthChangePercent": 1.2,
+    "fiveYearChangePercent": 4.1,
+    "valueScore": "neutral",
+    "analystNote": "Låg prisvariation – bäst som omedelbar konsumtion snarare än investering."
+  },
+  {
+    "id": "3003",
+    "wineSearcherUrl": "https://www.wine-searcher.com/find/palmer+brut+reserve",
+    "averageMarketPrice": 520,
+    "benchmarkPrice": 560,
+    "twelveMonthChangePercent": 9.8,
+    "fiveYearChangePercent": 34.6,
+    "valueScore": "exceptionell",
+    "analystNote": "Prestigechampagne med stark global efterfrågan och tydlig uppsida enligt Wine-Searcher."
+  }
+]

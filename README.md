@@ -1,2 +1,74 @@
-# thestory
-This is the beginning of The Asplund Story
+# The Story – Vinguide
+
+Detta repo innehåller en enkel React/Vite-applikation för att söka och filtrera i Systembolagets produktdata. Projektet är tänkt att fungera tillsammans med containern `ghcr.io/c4illin/systembolaget-data` men har även reservdata så att gränssnittet går att testa direkt. Utöver grundfiltreringen innehåller appen nu:
+
+- **Drickfönster- och lagringsfilter** för att snabbt hitta viner som passar din tidsplan eller källarkapacitet.
+- **Wine-Searcher analys** som räknar fram värdeökning baserat på externa data och lyfter fram de mest intressanta flaskorna för investering.
+
+## Kom igång
+
+1. Installera beroenden:
+   ```bash
+   cd frontend
+   npm install
+   ```
+
+2. (Valfritt) starta API:t via Docker-compose-filen i projektets rot:
+   ```bash
+   docker compose up systembolaget-data
+   ```
+   API:t exponerar då produkter på `http://localhost:3000/products`.
+
+3. Starta utvecklingsservern:
+   ```bash
+   npm run dev
+   ```
+
+4. Öppna webbläsaren på adressen som Vite visar (standard `http://localhost:5173`).
+
+Applikationen försöker först hämta data från `VITE_API_URL` (standard `http://localhost:3000`). Om anropet misslyckas laddas `frontend/public/sample-data.json` som reservdata. För värdeanalysen anropas `GET /value-insights?ids=...`; vid fel används `frontend/public/sample-value-insights.json`.
+
+## Konfiguration
+
+| Variabel                    | Standard                | Beskrivning                                                                                 |
+| --------------------------- | ----------------------- | ------------------------------------------------------------------------------------------- |
+| `VITE_API_URL`              | `http://localhost:3000` | Bas-URL till API:t med Systembolagets data och endpointen `/value-insights`.                |
+| `VITE_FIRECRAWL_API_KEY`    | –                       | API-nyckel för Firecrawl som används för att hämta sammanfattningar av Wine-Searcher-sidor. |
+| `VITE_FIRECRAWL_BASE_URL`   | `https://api.firecrawl.dev` | Valfri: ändra om du kör en egen Firecrawl-instans.                                          |
+| `VITE_FIRECRAWL_MAX_RESULTS` | `6`                     | Hur många unika länkar som hämtas samtidigt för sammanfattning.                             |
+
+### Firecrawl
+
+1. Skaffa en API-nyckel på [firecrawl.dev](https://firecrawl.dev/) och exportera den innan du startar bygget:
+   ```bash
+   export VITE_FIRECRAWL_API_KEY=sk_your_key
+   ```
+2. Bygg eller starta utvecklingsservern. Frontenden hämtar automatiskt upp till `VITE_FIRECRAWL_MAX_RESULTS`
+   Wine-Searcher-länkar från resultatslistan och presenterar en kort sammanfattning i varje kort.
+3. Om du själv hostar Firecrawl kan du peka `VITE_FIRECRAWL_BASE_URL` mot din instans (t.ex. `https://firecrawl.example.com`).
+
+> Tips: Utan API-nyckel visas en instruktion i varje kort som har en Wine-Searcher-länk så att testare vet hur
+> sammanfattningarna aktiveras.
+
+## Projektstruktur
+
+```
+frontend/
+  ├─ src/
+  │   ├─ App.tsx          # UI och filtreringslogik
+  │   ├─ main.tsx         # Inträde för React
+  │   └─ styles/          # Globala och komponentrelaterade stilar
+  ├─ public/
+  │   ├─ sample-data.json          # Reservdata för produkter
+  │   └─ sample-value-insights.json # Reservdata för Wine-Searcher-analys
+  ├─ index.html
+  └─ vite.config.ts
+```
+
+## Tips för vidareutveckling
+
+- Utöka API:t med fler datakällor (t.ex. auktioner eller sekundärmarknad) och mappa dem till Wine-Searcher-analysen.
+- Lägg till grafer över historisk prisutveckling per produkt.
+- Komplettera filtren med druvsammansättning, expertbetyg och koldioxidavtryck.
+
+Lycka till med vidare utveckling!
