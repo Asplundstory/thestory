@@ -1,0 +1,53 @@
+[
+  {
+    "ProductId": "1001",
+    "ProductNameBold": "Fontanafredda",
+    "ProductNameThin": "Barolo Serralunga d'Alba",
+    "Category": "Rött vin",
+    "Country": "Italien",
+    "OriginLevel1": "Piemonte",
+    "Grapes": ["Nebbiolo"],
+    "Price": 279,
+    "VolumeInMilliliter": 750,
+    "AlcoholPercent": "14",
+    "Organic": true,
+    "Ethical": false,
+    "SustainableChoice": true,
+    "Taste": "Stramt och smakrikt med toner av körsbär, rosor och kryddor.",
+    "Usage": "Nöt, vilt, lagrade ostar"
+  },
+  {
+    "ProductId": "2002",
+    "ProductNameBold": "Casal Garcia",
+    "ProductNameThin": "Vinho Verde",
+    "Category": "Vitt vin",
+    "Country": "Portugal",
+    "OriginLevel1": "Minho",
+    "Grapes": "Loureiro, Trajadura",
+    "Price": 89,
+    "VolumeInMilliliter": 750,
+    "AlcoholPercent": "9.5",
+    "Organic": false,
+    "Ethical": false,
+    "SustainableChoice": false,
+    "Taste": "Friskt med toner av citrus och gröna äpplen.",
+    "Usage": "Fisk och skaldjur"
+  },
+  {
+    "ProductId": "3003",
+    "ProductNameBold": "Champagne Palmer & Co",
+    "ProductNameThin": "Brut Réserve",
+    "Category": "Mousserande vin",
+    "Country": "Frankrike",
+    "OriginLevel1": "Champagne",
+    "Grapes": "Chardonnay, Pinot Noir, Pinot Meunier",
+    "Price": 399,
+    "VolumeInMilliliter": 750,
+    "AlcoholPercent": "12",
+    "Organic": false,
+    "Ethical": true,
+    "SustainableChoice": true,
+    "Taste": "Elegant med inslag av brioche, äpplen och citrus.",
+    "Usage": "Aperitif eller skaldjur"
+  }
+]

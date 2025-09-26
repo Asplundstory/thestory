@@ -1,0 +1,12 @@
+# Dependencies
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+
+# TypeScript incremental files
+frontend/*.tsbuildinfo
+
+# Environment files
+frontend/.env
+frontend/.env.*
