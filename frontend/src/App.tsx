@@ -1,9 +1,38 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './styles/App.css';
 
 const FALLBACK_DATA_URL = '/sample-data.json';
 const FALLBACK_VALUE_INSIGHTS_URL = '/sample-value-insights.json';
 const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3000';
+const FIRECRAWL_API_KEY = ((import.meta.env.VITE_FIRECRAWL_API_KEY as string | undefined) ?? '').trim() || undefined;
+const FIRECRAWL_BASE_URL = (() => {
+  const raw = (import.meta.env.VITE_FIRECRAWL_BASE_URL as string | undefined)?.trim();
+  if (!raw) {
+    return 'https://api.firecrawl.dev';
+  }
+  return raw.replace(/\/$/, '');
+})();
+const FIRECRAWL_TARGET_LIMIT = (() => {
+  const raw = (import.meta.env.VITE_FIRECRAWL_MAX_RESULTS as string | undefined)?.trim();
+  if (!raw) {
+    return 6;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return 6;
+  }
+  return parsed;
+})();
+
+type FirecrawlStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+interface FirecrawlSummaryState {
+  status: FirecrawlStatus;
+  sourceUrl: string;
+  title?: string;
+  summary?: string;
+  error?: string;
+}
 
 export interface WineValueInsight {
   id: string;
@@ -172,6 +201,32 @@ const toArray = (value: unknown): string[] | undefined => {
       .filter(Boolean);
   }
   return undefined;
+};
+
+const markdownToPlainText = (value: string): string =>
+  value
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/(?:^|\n)[-+*]\s+/g, ' ')
+    .replace(/[#>*_~]+/g, ' ')
+    .replace(/\r?\n+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const summariseFirecrawlContent = (value: string | undefined): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const plain = markdownToPlainText(value);
+  if (!plain) {
+    return undefined;
+  }
+  if (plain.length <= 600) {
+    return plain;
+  }
+  return `${plain.slice(0, 600).trim()}…`;
 };
 
 const normaliseValueScore = (value: unknown): WineValueInsight['valueScore'] | undefined => {
@@ -682,6 +737,13 @@ const FilterTag = ({ label, onRemove }: { label: string; onRemove?: () => void }
 const App = () => {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const { products, loading, error } = useWineProducts(filters);
+  const firecrawlEnabled = Boolean(FIRECRAWL_API_KEY);
+  const [firecrawlSummaries, setFirecrawlSummaries] = useState<Record<string, FirecrawlSummaryState>>({});
+  const firecrawlSummariesRef = useRef(firecrawlSummaries);
+
+  useEffect(() => {
+    firecrawlSummariesRef.current = firecrawlSummaries;
+  }, [firecrawlSummaries]);
 
   const activeFilters = useMemo(() => {
     const tags: { key: keyof FilterState; label: string }[] = [];
@@ -805,6 +867,111 @@ const App = () => {
         return matches;
     }
   }, [filters, products]);
+
+  const firecrawlTargets = useMemo(() => {
+    if (!firecrawlEnabled) {
+      return [] as string[];
+    }
+    const urls = filteredProducts
+      .map((product) => product.valueInsight?.wineSearcherUrl)
+      .filter((url): url is string => typeof url === 'string' && url.length > 0);
+    return Array.from(new Set(urls)).slice(0, FIRECRAWL_TARGET_LIMIT);
+  }, [filteredProducts, firecrawlEnabled]);
+
+  useEffect(() => {
+    if (!firecrawlEnabled || !FIRECRAWL_API_KEY) {
+      return;
+    }
+    if (!firecrawlTargets.length) {
+      return;
+    }
+
+    let isActive = true;
+
+    const fetchSummaries = async () => {
+      for (const url of firecrawlTargets) {
+        if (!isActive) {
+          break;
+        }
+
+        const existing = firecrawlSummariesRef.current[url];
+        if (existing && (existing.status === 'loading' || existing.status === 'ready')) {
+          continue;
+        }
+
+        setFirecrawlSummaries((prev) => ({
+          ...prev,
+          [url]: {
+            status: 'loading',
+            sourceUrl: url
+          }
+        }));
+
+        try {
+          const response = await fetch(`${FIRECRAWL_BASE_URL}/v1/scrape`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+              Authorization: `Bearer ${FIRECRAWL_API_KEY}`
+            },
+            body: JSON.stringify({
+              url,
+              formats: ['markdown', 'extract', 'text']
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`Firecrawl svarade med status ${response.status}`);
+          }
+
+          const payload = await response.json();
+          const data = payload?.data ?? payload ?? {};
+          const content =
+            (typeof data?.markdown === 'string' && data.markdown) ||
+            (typeof data?.extract === 'string' && data.extract) ||
+            (typeof data?.text === 'string' && data.text) ||
+            (typeof data?.content === 'string' && data.content) ||
+            undefined;
+          const summary = summariseFirecrawlContent(content);
+          const title = typeof data?.title === 'string' ? data.title : undefined;
+
+          if (!isActive) {
+            return;
+          }
+
+          setFirecrawlSummaries((prev) => ({
+            ...prev,
+            [url]: {
+              status: 'ready',
+              sourceUrl: url,
+              title,
+              summary
+            }
+          }));
+        } catch (fetchError) {
+          if (!isActive) {
+            return;
+          }
+
+          setFirecrawlSummaries((prev) => ({
+            ...prev,
+            [url]: {
+              status: 'error',
+              sourceUrl: url,
+              error: fetchError instanceof Error ? fetchError.message : 'Okänt fel'
+            }
+          }));
+        }
+      }
+    };
+
+    fetchSummaries();
+
+    return () => {
+      isActive = false;
+    };
+  }, [firecrawlTargets, firecrawlEnabled]);
 
   const categoryOptions = useMemo(() => {
     const set = new Set<string>();
@@ -1168,6 +1335,10 @@ const App = () => {
           {filteredProducts.map((product) => {
             const storageInfo = formatStorageInfo(product.storagePotentialYears, product.storageNote);
             const valueScoreLabel = translateValueScore(product.valueInsight?.valueScore);
+            const firecrawlUrl = product.valueInsight?.wineSearcherUrl;
+            const firecrawlSummary = firecrawlUrl ? firecrawlSummaries[firecrawlUrl] : undefined;
+            const firecrawlScheduled = firecrawlUrl ? firecrawlTargets.includes(firecrawlUrl) : false;
+            const firecrawlHeading = firecrawlSummary?.title?.trim() || 'Firecrawl-insikt';
             return (
               <li key={product.id} className="card">
                 <div className="card__header">
@@ -1285,6 +1456,36 @@ const App = () => {
                     </dl>
                     {product.valueInsight.analystNote && (
                       <p className="card__analysis-note">{product.valueInsight.analystNote}</p>
+                    )}
+                    {product.valueInsight.wineSearcherUrl && (
+                      <div className="card__analysis-firecrawl">
+                        <h5>{firecrawlHeading}</h5>
+                        {!firecrawlEnabled && (
+                          <p className="card__analysis-firecrawl-note">
+                            Lägg till <code>VITE_FIRECRAWL_API_KEY</code> för att visa automatiska sammanfattningar.
+                          </p>
+                        )}
+                        {firecrawlEnabled && firecrawlScheduled && (!firecrawlSummary || firecrawlSummary.status === 'loading') && (
+                          <p className="card__analysis-firecrawl-status">Hämtar analys från Firecrawl…</p>
+                        )}
+                        {firecrawlEnabled && firecrawlSummary?.status === 'ready' && firecrawlSummary.summary && (
+                          <p className="card__analysis-firecrawl-summary">{firecrawlSummary.summary}</p>
+                        )}
+                        {firecrawlEnabled && firecrawlSummary?.status === 'ready' && !firecrawlSummary.summary && (
+                          <p className="card__analysis-firecrawl-note">
+                            Firecrawl kunde inte extrahera någon sammanfattning för denna länk.
+                          </p>
+                        )}
+                        {firecrawlEnabled && firecrawlSummary?.status === 'error' && (
+                          <p className="card__analysis-firecrawl-error">Firecrawl-fel: {firecrawlSummary.error}</p>
+                        )}
+                        {firecrawlEnabled && firecrawlUrl && !firecrawlScheduled && !firecrawlSummary && (
+                          <p className="card__analysis-firecrawl-note">
+                            Firecrawl köar sammanfattningar för de första {FIRECRAWL_TARGET_LIMIT} träffarna. Förfina filtren
+                            för att inkludera denna länk.
+                          </p>
+                        )}
+                      </div>
                     )}
                     {product.valueInsight.wineSearcherUrl && (
                       <a

@@ -30,9 +30,25 @@ Applikationen försöker först hämta data från `VITE_API_URL` (standard `http
 
 ## Konfiguration
 
-| Variabel        | Standard               | Beskrivning                                                                 |
-| --------------- | ---------------------- | --------------------------------------------------------------------------- |
-| `VITE_API_URL`  | `http://localhost:3000` | Bas-URL till API:t med Systembolagets data och endpointen `/value-insights`. |
+| Variabel                    | Standard                | Beskrivning                                                                                 |
+| --------------------------- | ----------------------- | ------------------------------------------------------------------------------------------- |
+| `VITE_API_URL`              | `http://localhost:3000` | Bas-URL till API:t med Systembolagets data och endpointen `/value-insights`.                |
+| `VITE_FIRECRAWL_API_KEY`    | –                       | API-nyckel för Firecrawl som används för att hämta sammanfattningar av Wine-Searcher-sidor. |
+| `VITE_FIRECRAWL_BASE_URL`   | `https://api.firecrawl.dev` | Valfri: ändra om du kör en egen Firecrawl-instans.                                          |
+| `VITE_FIRECRAWL_MAX_RESULTS` | `6`                     | Hur många unika länkar som hämtas samtidigt för sammanfattning.                             |
+
+### Firecrawl
+
+1. Skaffa en API-nyckel på [firecrawl.dev](https://firecrawl.dev/) och exportera den innan du startar bygget:
+   ```bash
+   export VITE_FIRECRAWL_API_KEY=sk_your_key
+   ```
+2. Bygg eller starta utvecklingsservern. Frontenden hämtar automatiskt upp till `VITE_FIRECRAWL_MAX_RESULTS`
+   Wine-Searcher-länkar från resultatslistan och presenterar en kort sammanfattning i varje kort.
+3. Om du själv hostar Firecrawl kan du peka `VITE_FIRECRAWL_BASE_URL` mot din instans (t.ex. `https://firecrawl.example.com`).
+
+> Tips: Utan API-nyckel visas en instruktion i varje kort som har en Wine-Searcher-länk så att testare vet hur
+> sammanfattningarna aktiveras.
 
 ## Projektstruktur
 

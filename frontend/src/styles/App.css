@@ -405,6 +405,54 @@
   text-decoration: underline;
 }
 
+.card__analysis-firecrawl {
+  border: 1px solid rgba(37, 99, 235, 0.15);
+  background: rgba(37, 99, 235, 0.05);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.card__analysis-firecrawl h5 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.card__analysis-firecrawl-summary {
+  margin: 0;
+  color: #1f2937;
+  line-height: 1.5;
+}
+
+.card__analysis-firecrawl-status {
+  margin: 0;
+  color: #1d4ed8;
+  font-style: italic;
+}
+
+.card__analysis-firecrawl-note {
+  margin: 0;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.card__analysis-firecrawl-note code {
+  background: rgba(15, 23, 42, 0.08);
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.card__analysis-firecrawl-error {
+  margin: 0;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .badge--value {
   background: #e0e7ff;
   color: #312e81;
