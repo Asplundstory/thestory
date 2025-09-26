@@ -221,6 +221,61 @@
   color: #6b7280;
 }
 
+.results__insights {
+  background: #f8fafc;
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: 16px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.results__insights h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #1d4ed8;
+}
+
+.results__insights-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.results__insights-stats div {
+  background: #eff6ff;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.results__insights-stats dt {
+  margin: 0;
+  font-weight: 600;
+  color: #1e3a8a;
+}
+
+.results__insights-stats dd {
+  margin: 0.25rem 0 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.results__insights-leaders {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: #1f2937;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.results__insights-leaders li {
+  list-style: disc;
+}
+
 .results__grid {
   list-style: none;
   display: grid;
@@ -293,6 +348,86 @@
 .card__description {
   margin: 0;
   color: #374151;
+}
+
+.card__analysis {
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  padding-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.card__analysis-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card__analysis-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.card__analysis dl {
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.card__analysis dt {
+  font-weight: 600;
+  color: #334155;
+}
+
+.card__analysis dd {
+  margin: 0;
+  color: #0f172a;
+}
+
+.card__analysis-note {
+  margin: 0;
+  color: #4b5563;
+  font-style: italic;
+}
+
+.card__analysis-link {
+  align-self: flex-start;
+  text-decoration: none;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.card__analysis-link:hover {
+  text-decoration: underline;
+}
+
+.badge--value {
+  background: #e0e7ff;
+  color: #312e81;
+}
+
+.badge--value-exceptionell {
+  background: #f5f3ff;
+  color: #5b21b6;
+}
+
+.badge--value-stark {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge--value-neutral {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.badge--value-svag {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .card__usage {

@@ -2,7 +2,19 @@ import { useEffect, useMemo, useState } from 'react';
 import './styles/App.css';
 
 const FALLBACK_DATA_URL = '/sample-data.json';
+const FALLBACK_VALUE_INSIGHTS_URL = '/sample-value-insights.json';
 const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3000';
+
+export interface WineValueInsight {
+  id: string;
+  wineSearcherUrl?: string;
+  averageMarketPrice?: number;
+  benchmarkPrice?: number;
+  twelveMonthChangePercent?: number;
+  fiveYearChangePercent?: number;
+  analystNote?: string;
+  valueScore?: 'exceptionell' | 'stark' | 'neutral' | 'svag';
+}
 
 export interface WineProduct {
   id: string;
@@ -24,6 +36,11 @@ export interface WineProduct {
   sustainableChoice?: boolean;
   description?: string;
   usage?: string;
+  drinkFromYear?: number;
+  drinkToYear?: number;
+  storagePotentialYears?: number;
+  storageNote?: string;
+  valueInsight?: WineValueInsight;
 }
 
 interface FilterState {
@@ -37,6 +54,10 @@ interface FilterState {
   onlyOrganic: boolean;
   onlyEthical: boolean;
   onlySustainable: boolean;
+  drinkWindowFrom: string;
+  drinkWindowTo: string;
+  minStorageYears: string;
+  maxStorageYears: string;
   sortBy: 'relevance' | 'price-asc' | 'price-desc' | 'alcohol-desc';
 }
 
@@ -51,6 +72,10 @@ const DEFAULT_FILTERS: FilterState = {
   onlyOrganic: false,
   onlyEthical: false,
   onlySustainable: false,
+  drinkWindowFrom: '',
+  drinkWindowTo: '',
+  minStorageYears: '',
+  maxStorageYears: '',
   sortBy: 'relevance'
 };
 
@@ -64,12 +89,77 @@ const parseNumber = (value: unknown): number | undefined => {
   }
 
   if (typeof value === 'string') {
-    const normalised = value.replace(/[^0-9.,]/g, '').replace(',', '.');
+    const normalised = value.replace(/[^0-9.,-]/g, '').replace(',', '.');
+    if (normalised.includes('-')) {
+      const parts = normalised.split('-').map((part) => Number.parseFloat(part));
+      const filtered = parts.filter((part) => !Number.isNaN(part));
+      if (filtered.length > 0) {
+        return filtered[filtered.length - 1];
+      }
+    }
     const parsed = Number.parseFloat(normalised);
     return Number.isNaN(parsed) ? undefined : parsed;
   }
 
   return undefined;
+};
+
+const parseYearRange = (value: unknown): { from?: number; to?: number } => {
+  const years: number[] = [];
+
+  if (typeof value === 'number' && value >= 1000 && value <= 9999) {
+    years.push(value);
+  } else if (typeof value === 'string') {
+    const matches = value.match(/\d{4}/g);
+    if (matches) {
+      matches.forEach((match) => {
+        const year = Number.parseInt(match, 10);
+        if (!Number.isNaN(year)) {
+          years.push(year);
+        }
+      });
+    }
+  } else if (Array.isArray(value)) {
+    value.forEach((item) => {
+      const { from, to } = parseYearRange(item);
+      if (from) years.push(from);
+      if (to) years.push(to);
+    });
+  }
+
+  if (years.length === 0) {
+    return {};
+  }
+
+  const sorted = [...new Set(years)].sort((a, b) => a - b);
+
+  return {
+    from: sorted[0],
+    to: sorted.length > 1 ? sorted[sorted.length - 1] : undefined
+  };
+};
+
+const parseStoragePotential = (value: unknown): { years?: number; note?: string } => {
+  if (value === null || value === undefined) {
+    return {};
+  }
+
+  if (typeof value === 'number') {
+    return { years: value };
+  }
+
+  if (typeof value === 'string') {
+    const numberMatch = value.match(/\d+/g);
+    if (numberMatch && numberMatch.length > 0) {
+      const years = Number.parseInt(numberMatch[numberMatch.length - 1] ?? '', 10);
+      if (!Number.isNaN(years)) {
+        return { years, note: value };
+      }
+    }
+    return { note: value };
+  }
+
+  return {};
 };
 
 const toArray = (value: unknown): string[] | undefined => {
@@ -82,6 +172,147 @@ const toArray = (value: unknown): string[] | undefined => {
       .filter(Boolean);
   }
   return undefined;
+};
+
+const normaliseValueScore = (value: unknown): WineValueInsight['valueScore'] | undefined => {
+  if (!value) return undefined;
+  const normalised = String(value).trim().toLowerCase();
+  switch (normalised) {
+    case 'exceptionell':
+    case 'exceptional':
+      return 'exceptionell';
+    case 'stark':
+    case 'strong':
+      return 'stark';
+    case 'neutral':
+      return 'neutral';
+    case 'svag':
+    case 'weak':
+      return 'svag';
+    default:
+      return undefined;
+  }
+};
+
+const normaliseValueInsight = (raw: Record<string, unknown>): WineValueInsight | null => {
+  const id =
+    (raw.id as string | undefined) ??
+    (raw.productId as string | undefined) ??
+    (raw.ProductId as string | undefined) ??
+    (raw.articleId as string | undefined) ??
+    (raw.ArticleId as string | undefined);
+
+  if (!id) {
+    return null;
+  }
+
+  const averageMarketPrice = parseNumber(
+    raw.averageMarketPrice ?? raw.AverageMarketPrice ?? raw.marketPrice ?? raw.MarketPrice ?? raw.Price
+  );
+  const benchmarkPrice = parseNumber(
+    raw.benchmarkPrice ?? raw.BenchmarkPrice ?? raw.globalAveragePrice ?? raw.GlobalAveragePrice
+  );
+  const twelveMonthChangePercent = parseNumber(
+    raw.twelveMonthChangePercent ?? raw.TwelveMonthChangePercent ?? raw['12MonthChange'] ?? raw.YoyChange
+  );
+  const fiveYearChangePercent = parseNumber(
+    raw.fiveYearChangePercent ?? raw.FiveYearChangePercent ?? raw['5YearChange'] ?? raw.FiveYearTrend
+  );
+
+  const analystNote =
+    (raw.analystNote as string | undefined) ??
+    (raw.AnalystNote as string | undefined) ??
+    (raw.summary as string | undefined) ??
+    (raw.Summary as string | undefined) ??
+    (raw.Comment as string | undefined);
+
+  const wineSearcherUrl =
+    (raw.wineSearcherUrl as string | undefined) ??
+    (raw.WineSearcherUrl as string | undefined) ??
+    (raw.url as string | undefined) ??
+    (raw.Url as string | undefined);
+
+  const valueScore = normaliseValueScore(raw.valueScore ?? raw.ValueScore ?? raw.rating ?? raw.Rating);
+
+  return {
+    id,
+    wineSearcherUrl,
+    averageMarketPrice: averageMarketPrice ?? undefined,
+    benchmarkPrice: benchmarkPrice ?? undefined,
+    twelveMonthChangePercent: twelveMonthChangePercent ?? undefined,
+    fiveYearChangePercent: fiveYearChangePercent ?? undefined,
+    analystNote,
+    valueScore
+  };
+};
+
+const fetchValueInsights = async (productIds: string[]): Promise<Record<string, WineValueInsight>> => {
+  if (!productIds.length) {
+    return {};
+  }
+
+  const uniqueIds = Array.from(new Set(productIds));
+
+  const extract = (data: unknown): Record<string, WineValueInsight> => {
+    const rawList: Record<string, unknown>[] = Array.isArray(data)
+      ? data
+      : Array.isArray((data as { insights?: unknown[] } | undefined)?.insights)
+        ? (((data as { insights?: unknown[] }).insights ?? []) as Record<string, unknown>[])
+        : [];
+
+    return rawList.reduce<Record<string, WineValueInsight>>((accumulator, item) => {
+      const insight = normaliseValueInsight(item);
+      if (insight) {
+        accumulator[insight.id] = insight;
+      }
+      return accumulator;
+    }, {});
+  };
+
+  try {
+    const params = new URLSearchParams();
+    params.set('ids', uniqueIds.join(','));
+    const url = `${API_BASE_URL.replace(/\/$/, '')}/value-insights?${params.toString()}`;
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) {
+      throw new Error(`Misslyckades att hämta värdeinsikter (${response.status})`);
+    }
+    const data = await response.json();
+    return extract(data);
+  } catch (apiError) {
+    console.warn('Värdeinsikter via API misslyckades, använder reservdata', apiError);
+    const fallbackResponse = await fetch(FALLBACK_VALUE_INSIGHTS_URL, {
+      headers: { Accept: 'application/json' }
+    });
+    if (!fallbackResponse.ok) {
+      throw new Error('Kunde inte läsa reservinsikter');
+    }
+    const fallbackData = await fallbackResponse.json();
+    return extract(fallbackData);
+  }
+};
+
+const mergeWithValueInsights = async (products: WineProduct[]): Promise<WineProduct[]> => {
+  if (!products.length) {
+    return products;
+  }
+
+  try {
+    const insights = await fetchValueInsights(products.map((product) => product.id));
+    if (!Object.keys(insights).length) {
+      return products;
+    }
+
+    return products.map((product) => ({
+      ...product,
+      valueInsight: insights[product.id]
+    }));
+  } catch (error) {
+    console.warn('Kunde inte koppla värdeinsikter', error);
+    return products;
+  }
 };
 
 const normaliseProduct = (raw: Record<string, unknown>): WineProduct | null => {
@@ -172,6 +403,65 @@ const normaliseProduct = (raw: Record<string, unknown>): WineProduct | null => {
 
   const vintage = (raw.vintage as string | undefined) ?? (raw.Vintage as string | undefined);
 
+  const drinkWindowSources = [
+    raw.drinkWindow,
+    raw.DrinkWindow,
+    raw.drinkRange,
+    raw.DrinkRange,
+    raw.drinkability,
+    raw.Drinkability,
+    raw.drinkYears,
+    raw.DrinkYears,
+    raw.drinkDates,
+    raw.DrinkDates,
+    raw.drinkFromYear,
+    raw.drinkToYear,
+    raw.DrinkFromYear,
+    raw.DrinkToYear,
+    raw.BestBefore,
+    raw.BestAfter,
+    raw.ReadyToDrink,
+    raw.ReadyToDrinkYear
+  ].filter((item) => item !== undefined && item !== null);
+
+  const { from: drinkFromYear, to: drinkToYear } = parseYearRange(
+    drinkWindowSources.length === 0 ? undefined : drinkWindowSources.length === 1 ? drinkWindowSources[0] : drinkWindowSources
+  );
+
+  const storageRaw =
+    raw.storagePotential ??
+    raw.StoragePotential ??
+    raw.storage ??
+    raw.Storage ??
+    raw.storageRecommendation ??
+    raw.StorageRecommendation ??
+    raw.storageNote ??
+    raw.StorageNote ??
+    raw.AgingPotential ??
+    raw.CellarPotential ??
+    raw.CellaringPotential ??
+    raw.Maturity ??
+    raw.StorageComment;
+
+  const parsedStorage = parseStoragePotential(storageRaw);
+
+  const storagePotentialYears =
+    parsedStorage.years ??
+    parseNumber(
+      raw.storageYears ??
+        raw.StorageYears ??
+        raw.storageTime ??
+        raw.StorageTime ??
+        raw.maximumStorage ??
+        raw.MaximumStorage ??
+        raw.MaxStorageYears
+    );
+
+  const storageNote =
+    parsedStorage.note ??
+    (typeof storageRaw === 'string' ? storageRaw : undefined) ??
+    (raw.StorageComment as string | undefined);
+
   return {
     id,
     name: displayName || id,
@@ -191,7 +481,11 @@ const normaliseProduct = (raw: Record<string, unknown>): WineProduct | null => {
     ethical,
     sustainableChoice,
     description,
-    usage
+    usage,
+    drinkFromYear,
+    drinkToYear,
+    storagePotentialYears: storagePotentialYears ?? undefined,
+    storageNote
   };
 };
 
@@ -208,6 +502,10 @@ const buildQuery = (filters: FilterState): string => {
   if (filters.onlyOrganic) params.set('organic', 'true');
   if (filters.onlyEthical) params.set('ethical', 'true');
   if (filters.onlySustainable) params.set('sustainable', 'true');
+  if (filters.drinkWindowFrom) params.set('drinkFrom', filters.drinkWindowFrom);
+  if (filters.drinkWindowTo) params.set('drinkTo', filters.drinkWindowTo);
+  if (filters.minStorageYears) params.set('minStorageYears', filters.minStorageYears);
+  if (filters.maxStorageYears) params.set('maxStorageYears', filters.maxStorageYears);
   if (filters.sortBy !== 'relevance') params.set('sort', filters.sortBy);
 
   return params.toString();
@@ -248,9 +546,13 @@ const useWineProducts = (filters: FilterState) => {
             : [];
 
         const normalised = rawList.map(normaliseProduct).filter(Boolean) as WineProduct[];
+        let enriched = normalised;
+        if (!cancelled) {
+          enriched = await mergeWithValueInsights(normalised);
+        }
 
         if (!cancelled) {
-          setProducts(normalised);
+          setProducts(enriched);
         }
       } catch (fetchError) {
         console.warn('API-förfrågan misslyckades, försöker reservdata', fetchError);
@@ -263,8 +565,12 @@ const useWineProducts = (filters: FilterState) => {
           }
           const fallbackData = (await fallbackResponse.json()) as Record<string, unknown>[];
           const normalisedFallback = fallbackData.map(normaliseProduct).filter(Boolean) as WineProduct[];
+          let enrichedFallback = normalisedFallback;
           if (!cancelled) {
-            setProducts(normalisedFallback);
+            enrichedFallback = await mergeWithValueInsights(normalisedFallback);
+          }
+          if (!cancelled) {
+            setProducts(enrichedFallback);
           }
         } catch (fallbackError) {
           if (!cancelled) {
@@ -310,6 +616,62 @@ const formatAlcohol = (alcohol?: number) => {
   return `${alcohol.toFixed(1)}%`;
 };
 
+const formatDrinkWindow = (from?: number, to?: number) => {
+  if (from && to) {
+    return `${from}–${to}`;
+  }
+  if (from) {
+    return `från ${from}`;
+  }
+  if (to) {
+    return `till ${to}`;
+  }
+  return 'uppgift saknas';
+};
+
+const formatStorageInfo = (years?: number, note?: string) => {
+  const parts: string[] = [];
+  if (years !== undefined) {
+    parts.push(`upp till ${years} år`);
+  }
+  if (note) {
+    const trimmed = note.trim();
+    if (trimmed) {
+      if (parts.length > 0 && trimmed.toLowerCase().startsWith('upp till')) {
+        return trimmed;
+      }
+      parts.push(trimmed);
+    }
+  }
+  if (!parts.length) {
+    return undefined;
+  }
+  return parts
+    .map((fragment, index) => (index === 0 ? fragment.charAt(0).toUpperCase() + fragment.slice(1) : fragment))
+    .join('. ');
+};
+
+const formatPercentChange = (value: number) => {
+  const precision = Math.abs(value) >= 10 ? 0 : 1;
+  const formatted = value.toFixed(precision);
+  return `${value > 0 ? '+' : ''}${formatted}%`;
+};
+
+const translateValueScore = (score?: WineValueInsight['valueScore']) => {
+  switch (score) {
+    case 'exceptionell':
+      return 'Exceptionell potential';
+    case 'stark':
+      return 'Stark potential';
+    case 'neutral':
+      return 'Neutral utveckling';
+    case 'svag':
+      return 'Svag utveckling';
+    default:
+      return undefined;
+  }
+};
+
 const FilterTag = ({ label, onRemove }: { label: string; onRemove?: () => void }) => (
   <button className="filter-tag" type="button" onClick={onRemove} aria-label={`Ta bort filtret ${label}`}>
     <span>{label}</span>
@@ -333,6 +695,10 @@ const App = () => {
     if (filters.onlyOrganic) tags.push({ key: 'onlyOrganic', label: 'Endast ekologiskt' });
     if (filters.onlyEthical) tags.push({ key: 'onlyEthical', label: 'Endast etiskt' });
     if (filters.onlySustainable) tags.push({ key: 'onlySustainable', label: 'Hållbart val' });
+    if (filters.drinkWindowFrom) tags.push({ key: 'drinkWindowFrom', label: `Drickfönster från ${filters.drinkWindowFrom}` });
+    if (filters.drinkWindowTo) tags.push({ key: 'drinkWindowTo', label: `Drickfönster till ${filters.drinkWindowTo}` });
+    if (filters.minStorageYears) tags.push({ key: 'minStorageYears', label: `Lagring minst ${filters.minStorageYears} år` });
+    if (filters.maxStorageYears) tags.push({ key: 'maxStorageYears', label: `Lagring max ${filters.maxStorageYears} år` });
     return tags;
   }, [filters]);
 
@@ -386,6 +752,45 @@ const App = () => {
         return false;
       }
 
+      const drinkFrom = product.drinkFromYear ?? product.drinkToYear;
+      const drinkTo = product.drinkToYear ?? product.drinkFromYear;
+
+      if (filters.drinkWindowFrom) {
+        const desiredFrom = Number(filters.drinkWindowFrom);
+        if (!Number.isNaN(desiredFrom)) {
+          if (drinkTo === undefined || drinkTo < desiredFrom) {
+            return false;
+          }
+        }
+      }
+
+      if (filters.drinkWindowTo) {
+        const desiredTo = Number(filters.drinkWindowTo);
+        if (!Number.isNaN(desiredTo)) {
+          if (drinkFrom === undefined || drinkFrom > desiredTo) {
+            return false;
+          }
+        }
+      }
+
+      if (filters.minStorageYears) {
+        const minStorage = Number(filters.minStorageYears);
+        if (!Number.isNaN(minStorage)) {
+          if (product.storagePotentialYears === undefined || product.storagePotentialYears < minStorage) {
+            return false;
+          }
+        }
+      }
+
+      if (filters.maxStorageYears) {
+        const maxStorage = Number(filters.maxStorageYears);
+        if (!Number.isNaN(maxStorage)) {
+          if (product.storagePotentialYears === undefined || product.storagePotentialYears > maxStorage) {
+            return false;
+          }
+        }
+      }
+
       return true;
     });
 
@@ -425,6 +830,57 @@ const App = () => {
     if (!filteredProducts.length) return 0;
     const total = filteredProducts.reduce((sum, product) => sum + product.price, 0);
     return Math.round(total / filteredProducts.length);
+  }, [filteredProducts]);
+
+  const valueSummary = useMemo(() => {
+    const withInsights = filteredProducts.filter((product) => product.valueInsight);
+    if (!withInsights.length) {
+      return null;
+    }
+
+    const collectValues = (selector: (product: WineProduct) => number | undefined) =>
+      withInsights
+        .map(selector)
+        .filter((value): value is number => typeof value === 'number' && !Number.isNaN(value));
+
+    const average = (values: number[]) =>
+      values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : undefined;
+
+    const twelveMonthValues = collectValues((product) => product.valueInsight?.twelveMonthChangePercent);
+    const fiveYearValues = collectValues((product) => product.valueInsight?.fiveYearChangePercent);
+
+    const bestTwelveMonth = withInsights.reduce<
+      { product: WineProduct; change: number } | undefined
+    >((best, product) => {
+      const change = product.valueInsight?.twelveMonthChangePercent;
+      if (typeof change !== 'number' || Number.isNaN(change)) {
+        return best;
+      }
+      if (!best || change > best.change) {
+        return { product, change };
+      }
+      return best;
+    }, undefined);
+
+    const bestFiveYear = withInsights.reduce<
+      { product: WineProduct; change: number } | undefined
+    >((best, product) => {
+      const change = product.valueInsight?.fiveYearChangePercent;
+      if (typeof change !== 'number' || Number.isNaN(change)) {
+        return best;
+      }
+      if (!best || change > best.change) {
+        return { product, change };
+      }
+      return best;
+    }, undefined);
+
+    return {
+      avgTwelveMonth: average(twelveMonthValues),
+      avgFiveYear: average(fiveYearValues),
+      bestTwelveMonth,
+      bestFiveYear
+    };
   }, [filteredProducts]);
 
   const clearFilters = () => setFilters(DEFAULT_FILTERS);
@@ -546,6 +1002,62 @@ const App = () => {
           </div>
         </div>
 
+        <div className="filters__row">
+          <div className="filters__group filters__group--inline">
+            <label htmlFor="drinkWindowFrom">Drickfönster (år)</label>
+            <div className="filters__inputs-inline">
+              <input
+                id="drinkWindowFrom"
+                type="number"
+                min={1900}
+                max={2100}
+                placeholder="Från"
+                value={filters.drinkWindowFrom}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, drinkWindowFrom: event.target.value }))
+                }
+              />
+              <span className="filters__separator">–</span>
+              <input
+                id="drinkWindowTo"
+                type="number"
+                min={1900}
+                max={2100}
+                placeholder="Till"
+                value={filters.drinkWindowTo}
+                onChange={(event) => setFilters((current) => ({ ...current, drinkWindowTo: event.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="filters__group filters__group--inline">
+            <label htmlFor="minStorageYears">Lagringspotential (år)</label>
+            <div className="filters__inputs-inline">
+              <input
+                id="minStorageYears"
+                type="number"
+                min={0}
+                placeholder="Min"
+                value={filters.minStorageYears}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, minStorageYears: event.target.value }))
+                }
+              />
+              <span className="filters__separator">–</span>
+              <input
+                id="maxStorageYears"
+                type="number"
+                min={0}
+                placeholder="Max"
+                value={filters.maxStorageYears}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, maxStorageYears: event.target.value }))
+                }
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="filters__checkboxes">
           <label className="checkbox">
             <input
@@ -606,6 +1118,42 @@ const App = () => {
           </div>
         </header>
 
+        {valueSummary && (
+          <aside className="results__insights" aria-live="polite">
+            <h3>Wine-Searcher analys</h3>
+            <dl className="results__insights-stats">
+              {valueSummary.avgTwelveMonth !== undefined && (
+                <div>
+                  <dt>Snitt 12 mån</dt>
+                  <dd>{formatPercentChange(valueSummary.avgTwelveMonth)}</dd>
+                </div>
+              )}
+              {valueSummary.avgFiveYear !== undefined && (
+                <div>
+                  <dt>Snitt 5 år</dt>
+                  <dd>{formatPercentChange(valueSummary.avgFiveYear)}</dd>
+                </div>
+              )}
+            </dl>
+            {(valueSummary.bestTwelveMonth || valueSummary.bestFiveYear) && (
+              <ul className="results__insights-leaders">
+                {valueSummary.bestTwelveMonth && (
+                  <li>
+                    Bäst 12 månader: <strong>{valueSummary.bestTwelveMonth.product.name}</strong>{' '}
+                    ({formatPercentChange(valueSummary.bestTwelveMonth.change)})
+                  </li>
+                )}
+                {valueSummary.bestFiveYear && (
+                  <li>
+                    Bäst 5 år: <strong>{valueSummary.bestFiveYear.product.name}</strong>{' '}
+                    ({formatPercentChange(valueSummary.bestFiveYear.change)})
+                  </li>
+                )}
+              </ul>
+            )}
+          </aside>
+        )}
+
         {error && (
           <div className="results__error" role="alert">
             <strong>Något gick fel:</strong> {error}
@@ -617,64 +1165,143 @@ const App = () => {
         )}
 
         <ul className="results__grid">
-          {filteredProducts.map((product) => (
-            <li key={product.id} className="card">
-              <div className="card__header">
-                <h3>{product.name}</h3>
-                <span className="card__price">{formatPrice(product.price)}</span>
-              </div>
-              <dl className="card__details">
-                {product.category && (
-                  <div>
-                    <dt>Kategori</dt>
-                    <dd>{product.category}</dd>
-                  </div>
-                )}
-                {product.country && (
-                  <div>
-                    <dt>Ursprung</dt>
-                    <dd>
-                      {product.country}
-                      {product.origin ? ` – ${product.origin}` : ''}
-                    </dd>
-                  </div>
-                )}
-                {product.volumeMl && (
-                  <div>
-                    <dt>Volym</dt>
-                    <dd>{formatVolume(product.volumeMl)}</dd>
-                  </div>
-                )}
-                {product.alcoholPercent !== undefined && (
-                  <div>
-                    <dt>Alkoholhalt</dt>
-                    <dd>{formatAlcohol(product.alcoholPercent)}</dd>
-                  </div>
-                )}
-                {product.grapes && product.grapes.length > 0 && (
-                  <div>
-                    <dt>Druvor</dt>
-                    <dd>{product.grapes.join(', ')}</dd>
-                  </div>
-                )}
-                {product.supplier && (
-                  <div>
-                    <dt>Producent</dt>
-                    <dd>{product.supplier}</dd>
-                  </div>
-                )}
-              </dl>
-              {(product.organic || product.ethical || product.sustainableChoice) && (
-                <div className="card__badges">
-                  {product.organic && <span className="badge">Ekologisk</span>}
-                  {product.ethical && <span className="badge">Etisk</span>}
-                  {product.sustainableChoice && <span className="badge">Hållbart val</span>}
+          {filteredProducts.map((product) => {
+            const storageInfo = formatStorageInfo(product.storagePotentialYears, product.storageNote);
+            const valueScoreLabel = translateValueScore(product.valueInsight?.valueScore);
+            return (
+              <li key={product.id} className="card">
+                <div className="card__header">
+                  <h3>{product.name}</h3>
+                  <span className="card__price">{formatPrice(product.price)}</span>
                 </div>
-              )}
-              {product.description && <p className="card__description">{product.description}</p>}
-              {product.usage && <p className="card__usage">Passar till: {product.usage}</p>}
-            </li>
-          ))}
+                <dl className="card__details">
+                  {product.category && (
+                    <div>
+                      <dt>Kategori</dt>
+                      <dd>{product.category}</dd>
+                    </div>
+                  )}
+                  {product.country && (
+                    <div>
+                      <dt>Ursprung</dt>
+                      <dd>
+                        {product.country}
+                        {product.origin ? ` – ${product.origin}` : ''}
+                      </dd>
+                    </div>
+                  )}
+                  {product.vintage && (
+                    <div>
+                      <dt>Årgång</dt>
+                      <dd>{product.vintage}</dd>
+                    </div>
+                  )}
+                  {(product.drinkFromYear || product.drinkToYear) && (
+                    <div>
+                      <dt>Drickfönster</dt>
+                      <dd>{formatDrinkWindow(product.drinkFromYear, product.drinkToYear)}</dd>
+                    </div>
+                  )}
+                  {storageInfo && (
+                    <div>
+                      <dt>Lagring</dt>
+                      <dd>{storageInfo}</dd>
+                    </div>
+                  )}
+                  {product.volumeMl && (
+                    <div>
+                      <dt>Volym</dt>
+                      <dd>{formatVolume(product.volumeMl)}</dd>
+                    </div>
+                  )}
+                  {product.alcoholPercent !== undefined && (
+                    <div>
+                      <dt>Alkoholhalt</dt>
+                      <dd>{formatAlcohol(product.alcoholPercent)}</dd>
+                    </div>
+                  )}
+                  {product.grapes && product.grapes.length > 0 && (
+                    <div>
+                      <dt>Druvor</dt>
+                      <dd>{product.grapes.join(', ')}</dd>
+                    </div>
+                  )}
+                  {product.supplier && (
+                    <div>
+                      <dt>Producent</dt>
+                      <dd>{product.supplier}</dd>
+                    </div>
+                  )}
+                </dl>
+                {(product.organic || product.ethical || product.sustainableChoice) && (
+                  <div className="card__badges">
+                    {product.organic && <span className="badge">Ekologisk</span>}
+                    {product.ethical && <span className="badge">Etisk</span>}
+                    {product.sustainableChoice && <span className="badge">Hållbart val</span>}
+                  </div>
+                )}
+                {product.description && <p className="card__description">{product.description}</p>}
+                {product.valueInsight && (
+                  <div className="card__analysis">
+                    <div className="card__analysis-header">
+                      <h4>Wine-Searcher</h4>
+                      {valueScoreLabel && (
+                        <span
+                          className={`badge badge--value ${
+                            product.valueInsight.valueScore
+                              ? `badge--value-${product.valueInsight.valueScore}`
+                              : ''
+                          }`.trim()}
+                        >
+                          {valueScoreLabel}
+                        </span>
+                      )}
+                    </div>
+                    <dl>
+                      {product.valueInsight.twelveMonthChangePercent !== undefined && (
+                        <div>
+                          <dt>12 mån värde</dt>
+                          <dd>{formatPercentChange(product.valueInsight.twelveMonthChangePercent)}</dd>
+                        </div>
+                      )}
+                      {product.valueInsight.fiveYearChangePercent !== undefined && (
+                        <div>
+                          <dt>5 år värde</dt>
+                          <dd>{formatPercentChange(product.valueInsight.fiveYearChangePercent)}</dd>
+                        </div>
+                      )}
+                      {product.valueInsight.averageMarketPrice !== undefined && (
+                        <div>
+                          <dt>Marknadspris</dt>
+                          <dd>{formatPrice(product.valueInsight.averageMarketPrice)}</dd>
+                        </div>
+                      )}
+                      {product.valueInsight.benchmarkPrice !== undefined && (
+                        <div>
+                          <dt>Benchmark</dt>
+                          <dd>{formatPrice(product.valueInsight.benchmarkPrice)}</dd>
+                        </div>
+                      )}
+                    </dl>
+                    {product.valueInsight.analystNote && (
+                      <p className="card__analysis-note">{product.valueInsight.analystNote}</p>
+                    )}
+                    {product.valueInsight.wineSearcherUrl && (
+                      <a
+                        className="card__analysis-link"
+                        href={product.valueInsight.wineSearcherUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Se detaljer på Wine-Searcher
+                      </a>
+                    )}
+                  </div>
+                )}
+                {product.usage && <p className="card__usage">Passar till: {product.usage}</p>}
+              </li>
+            );
+          })}
         </ul>
       </section>
     </div>

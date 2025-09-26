@@ -3,6 +3,8 @@ frontend/node_modules/
 
 # Build output
 frontend/dist/
+frontend/vite.config.js
+frontend/vite.config.d.ts
 
 # TypeScript incremental files
 frontend/*.tsbuildinfo

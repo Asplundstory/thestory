@@ -13,6 +13,9 @@
     "Organic": true,
     "Ethical": false,
     "SustainableChoice": true,
+    "DrinkFromYear": 2024,
+    "DrinkToYear": 2032,
+    "StoragePotential": "Lagringsbar upp till 8-10 år",
     "Taste": "Stramt och smakrikt med toner av körsbär, rosor och kryddor.",
     "Usage": "Nöt, vilt, lagrade ostar"
   },
@@ -30,6 +33,9 @@
     "Organic": false,
     "Ethical": false,
     "SustainableChoice": false,
+    "DrinkFromYear": 2023,
+    "DrinkToYear": 2025,
+    "StoragePotential": "Drick nu, begränsad lagringspotential",
     "Taste": "Friskt med toner av citrus och gröna äpplen.",
     "Usage": "Fisk och skaldjur"
   },
@@ -47,6 +53,9 @@
     "Organic": false,
     "Ethical": true,
     "SustainableChoice": true,
+    "DrinkFromYear": 2022,
+    "DrinkToYear": 2028,
+    "StoragePotential": "Kan lagras upp till 6 år",
     "Taste": "Elegant med inslag av brioche, äpplen och citrus.",
     "Usage": "Aperitif eller skaldjur"
   }
